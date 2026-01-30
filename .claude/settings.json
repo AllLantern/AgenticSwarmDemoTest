@@ -1,0 +1,49 @@
+{
+  "project": {
+    "name": "Agentic Swarm Demo",
+    "description": "Live demonstration of AI-native development with Claude Code agent swarming",
+    "version": "1.0.0"
+  },
+  "agents": {
+    "enabled": true,
+    "directory": "./",
+    "available": [
+      "planner",
+      "architect",
+      "tdd-guide",
+      "code-reviewer",
+      "security-reviewer",
+      "database-reviewer",
+      "build-error-resolver",
+      "go-build-resolver",
+      "go-reviewer",
+      "refactor-cleaner",
+      "e2e-runner",
+      "doc-updater"
+    ]
+  },
+  "swarm": {
+    "patterns": {
+      "feature-development": ["planner", "architect", "tdd-guide", "code-reviewer", "security-reviewer"],
+      "bug-fix": ["tdd-guide", "build-error-resolver", "code-reviewer"],
+      "refactoring": ["refactor-cleaner", "architect", "code-reviewer", "e2e-runner"],
+      "security-audit": ["security-reviewer", "code-reviewer", "database-reviewer"],
+      "go-development": ["planner", "tdd-guide", "go-build-resolver", "go-reviewer"]
+    },
+    "parallelExecution": {
+      "enabled": true,
+      "maxConcurrent": 3
+    }
+  },
+  "defaults": {
+    "model": "opus",
+    "testFirst": true,
+    "securityReviewRequired": true,
+    "codeReviewRequired": true
+  },
+  "demo": {
+    "mode": "interactive",
+    "audienceParticipation": true,
+    "showAgentThinking": true
+  }
+}

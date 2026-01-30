@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melody Master - Guess the Song!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a2e;
+            --bg-card: #16213e;
+            --accent-primary: #e94560;
+            --accent-secondary: #0f3460;
+            --accent-success: #00d26a;
+            --accent-warning: #ffc107;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #6c757d;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-primary), #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .challenge-number {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
+
+        /* Player Section */
+        .player-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .duration-display {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        .duration-display span {
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        .play-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-primary), #ff6b6b);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+        }
+
+        .play-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 30px rgba(233, 69, 96, 0.6);
+        }
+
+        .play-button:active {
+            transform: scale(0.98);
+        }
+
+        .play-button svg {
+            width: 32px;
+            height: 32px;
+            fill: white;
+        }
+
+        .play-button.playing {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4); }
+            50% { box-shadow: 0 4px 40px rgba(233, 69, 96, 0.8); }
+        }
+
+        /* Waveform visualization */
+        .waveform {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            margin-bottom: 10px;
+        }
+
+        .waveform-bar {
+            width: 4px;
+            background: var(--accent-primary);
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
+
+        /* Progress Indicators */
+        .attempts-container {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .attempt-slot {
+            width: 40px;
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .attempt-slot.used {
+            background: var(--accent-primary);
+        }
+
+        .attempt-slot.correct {
+            background: var(--accent-success);
+        }
+
+        .attempt-slot.skipped {
+            background: var(--text-muted);
+        }
+
+        .attempt-slot.current {
+            box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+        }
+
+        /* Guess History */
+        .guess-history {
+            margin-top: 15px;
+        }
+
+        .guess-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .guess-item.wrong {
+            border-left: 3px solid var(--accent-primary);
+        }
+
+        .guess-item.skipped {
+            border-left: 3px solid var(--text-muted);
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .guess-item.correct {
+            border-left: 3px solid var(--accent-success);
+            color: var(--accent-success);
+        }
+
+        /* Guess Input Section */
+        .guess-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .guess-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 1rem;
+            background: var(--bg-secondary);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: var(--text-primary);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .guess-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.2);
+        }
+
+        .guess-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-top: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            border-bottom: 1px solid var(--bg-card);
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: var(--bg-card);
+        }
+
+        .autocomplete-item .title {
+            font-weight: 500;
+        }
+
+        .autocomplete-item .artist {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), #ff6b6b);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--accent-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Result Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal h2 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        .modal.win h2 {
+            color: var(--accent-success);
+        }
+
+        .modal.lose h2 {
+            color: var(--accent-primary);
+        }
+
+        .modal .song-reveal {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .modal .song-reveal .title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .modal .song-reveal .artist {
+            color: var(--text-secondary);
+        }
+
+        .modal .emoji-result {
+            font-size: 1.5rem;
+            letter-spacing: 4px;
+            margin: 15px 0;
+        }
+
+        .modal .stats-preview {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 20px 0;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .stat-item .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .btn-share {
+            background: linear-gradient(135deg, #1da1f2, #0d8ecf);
+            margin-bottom: 10px;
+        }
+
+        .btn-share:hover {
+            box-shadow: 0 4px 20px rgba(29, 161, 242, 0.4);
+        }
+
+        /* Stats Modal */
+        .distribution-chart {
+            margin: 20px 0;
+        }
+
+        .distribution-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 0.9rem;
+        }
+
+        .distribution-row .attempt-num {
+            width: 20px;
+            text-align: center;
+            margin-right: 10px;
+        }
+
+        .distribution-row .bar-container {
+            flex: 1;
+            height: 24px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .distribution-row .bar {
+            height: 100%;
+            background: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            min-width: 24px;
+            transition: width 0.5s ease;
+        }
+
+        .distribution-row .bar.highlight {
+            background: var(--accent-success);
+        }
+
+        /* Countdown */
+        .countdown {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--bg-secondary);
+        }
+
+        .countdown .label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .countdown .time {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: monospace;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Header buttons */
+        .header-buttons {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--bg-card);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .icon-btn:hover {
+            background: var(--accent-secondary);
+        }
+
+        .icon-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--text-secondary);
+        }
+
+        /* Help text */
+        .help-text {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-top: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .play-button {
+                width: 70px;
+                height: 70px;
+            }
+
+            .attempt-slot {
+                width: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header-buttons">
+        <button class="icon-btn" onclick="showStats()" title="Statistics">
+            <svg viewBox="0 0 24 24"><path d="M16 11V3H8v6H2v12h20V11h-6zm-6-6h4v14h-4V5zm-6 6h4v8H4v-8zm16 8h-4v-6h4v6z"/></svg>
+        </button>
+        <button class="icon-btn" onclick="showHelp()" title="How to Play">
+            <svg viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+        </button>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>Melody Master</h1>
+            <p class="subtitle">Guess the song from the melody!</p>
+            <p class="challenge-number" id="challenge-number">Daily Challenge #1</p>
+        </header>
+
+        <div class="player-section">
+            <div class="duration-display">
+                Listen for <span id="duration-display">1 second</span>
+            </div>
+
+            <div class="waveform" id="waveform">
+                <!-- Generated by JS -->
+            </div>
+
+            <button class="play-button" id="play-btn" onclick="playMelody()">
+                <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+
+            <div class="attempts-container" id="attempts-container">
+                <!-- Generated by JS -->
+            </div>
+
+            <div class="guess-history" id="guess-history">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <div class="guess-section" id="guess-section">
+            <div class="input-wrapper">
+                <input
+                    type="text"
+                    class="guess-input"
+                    id="guess-input"
+                    placeholder="Know it? Search for the song..."
+                    autocomplete="off"
+                >
+                <div class="autocomplete-dropdown" id="autocomplete-dropdown">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+            <div class="button-row">
+                <button class="btn btn-secondary" id="skip-btn" onclick="skipAttempt()">Skip (+1s)</button>
+                <button class="btn btn-primary" id="submit-btn" onclick="submitGuess()" disabled>Submit</button>
+            </div>
+            <p class="help-text">Type to search from the song list</p>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div class="modal-overlay" id="result-modal">
+        <div class="modal" id="modal-content">
+            <h2 id="result-title">You got it!</h2>
+            <div class="song-reveal">
+                <div class="title" id="reveal-title">Song Title</div>
+                <div class="artist" id="reveal-artist">Artist</div>
+            </div>
+            <div class="emoji-result" id="emoji-result">🟩</div>
+            <div class="stats-preview">
+                <div class="stat-item">
+                    <div class="value" id="stat-played">0</div>
+                    <div class="label">Played</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="stat-win-pct">0%</div>
+                    <div class="label">Win %</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="stat-streak">0</div>
+                    <div class="label">Streak</div>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-share" onclick="shareResult()">Share Result</button>
+            <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- Stats Modal -->
+    <div class="modal-overlay" id="stats-modal">
+        <div class="modal">
+            <h2>Statistics</h2>
+            <div class="stats-preview">
+                <div class="stat-item">
+                    <div class="value" id="stats-played">0</div>
+                    <div class="label">Played</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="stats-win-pct">0%</div>
+                    <div class="label">Win %</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="stats-current-streak">0</div>
+                    <div class="label">Current Streak</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" id="stats-max-streak">0</div>
+                    <div class="label">Max Streak</div>
+                </div>
+            </div>
+            <h3 style="margin-top: 20px; font-size: 1rem;">Guess Distribution</h3>
+            <div class="distribution-chart" id="distribution-chart">
+                <!-- Generated by JS -->
+            </div>
+            <div class="countdown" id="countdown-section">
+                <div class="label">Next Melody Master</div>
+                <div class="time" id="countdown-time">00:00:00</div>
+            </div>
+            <button class="btn btn-secondary" onclick="closeStatsModal()" style="margin-top: 20px;">Close</button>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="help-modal">
+        <div class="modal">
+            <h2>How to Play</h2>
+            <div style="text-align: left; margin: 20px 0; line-height: 1.8;">
+                <p><strong>1.</strong> Press play to hear a short clip of the melody</p>
+                <p><strong>2.</strong> Try to guess the song from the list</p>
+                <p><strong>3.</strong> Wrong guesses unlock longer clips</p>
+                <p><strong>4.</strong> You have 6 attempts to guess correctly</p>
+            </div>
+            <div style="margin: 20px 0;">
+                <div style="display: flex; align-items: center; gap: 10px; margin: 8px 0;">
+                    <span style="color: var(--accent-success);">🟩</span> Correct guess
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; margin: 8px 0;">
+                    <span style="color: var(--accent-primary);">🟥</span> Wrong guess
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; margin: 8px 0;">
+                    <span>⬛</span> Skipped
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="closeHelpModal()">Got it!</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">Copied to clipboard!</div>
+
+    <script>
+        // ============ SONG LIBRARY (Public Domain Melodies) ============
+        // Note format: [frequency in Hz, duration in seconds]
+        // Using standard A4 = 440 Hz tuning
+
+        const NOTE_FREQS = {
+            'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23,
+            'G4': 392.00, 'A4': 440.00, 'B4': 493.88,
+            'C5': 523.25, 'D5': 587.33, 'E5': 659.25, 'F5': 698.46,
+            'G5': 783.99, 'A5': 880.00, 'B5': 987.77,
+            'C3': 130.81, 'D3': 146.83, 'E3': 164.81, 'F3': 174.61,
+            'G3': 196.00, 'A3': 220.00, 'B3': 246.94,
+            'Bb4': 466.16, 'Eb4': 311.13, 'Ab4': 415.30,
+            'F#4': 369.99, 'C#5': 554.37, 'G#4': 415.30
+        };
+
+        const SONGS = [
+            {
+                id: 'twinkle',
+                title: 'Twinkle Twinkle Little Star',
+                artist: 'Traditional',
+                tempo: 100,
+                notes: [
+                    ['C4', 0.4], ['C4', 0.4], ['G4', 0.4], ['G4', 0.4],
+                    ['A4', 0.4], ['A4', 0.4], ['G4', 0.8],
+                    ['F4', 0.4], ['F4', 0.4], ['E4', 0.4], ['E4', 0.4],
+                    ['D4', 0.4], ['D4', 0.4], ['C4', 0.8]
+                ]
+            },
+            {
+                id: 'ode-to-joy',
+                title: 'Ode to Joy',
+                artist: 'Beethoven',
+                tempo: 120,
+                notes: [
+                    ['E4', 0.4], ['E4', 0.4], ['F4', 0.4], ['G4', 0.4],
+                    ['G4', 0.4], ['F4', 0.4], ['E4', 0.4], ['D4', 0.4],
+                    ['C4', 0.4], ['C4', 0.4], ['D4', 0.4], ['E4', 0.4],
+                    ['E4', 0.6], ['D4', 0.2], ['D4', 0.8]
+                ]
+            },
+            {
+                id: 'happy-birthday',
+                title: 'Happy Birthday',
+                artist: 'Traditional',
+                tempo: 140,
+                notes: [
+                    ['G4', 0.3], ['G4', 0.3], ['A4', 0.6], ['G4', 0.6],
+                    ['C5', 0.6], ['B4', 1.0],
+                    ['G4', 0.3], ['G4', 0.3], ['A4', 0.6], ['G4', 0.6],
+                    ['D5', 0.6], ['C5', 1.0]
+                ]
+            },
+            {
+                id: 'mary-lamb',
+                title: 'Mary Had a Little Lamb',
+                artist: 'Traditional',
+                tempo: 120,
+                notes: [
+                    ['E4', 0.4], ['D4', 0.4], ['C4', 0.4], ['D4', 0.4],
+                    ['E4', 0.4], ['E4', 0.4], ['E4', 0.8],
+                    ['D4', 0.4], ['D4', 0.4], ['D4', 0.8],
+                    ['E4', 0.4], ['G4', 0.4], ['G4', 0.8]
+                ]
+            },
+            {
+                id: 'jingle-bells',
+                title: 'Jingle Bells',
+                artist: 'Traditional',
+                tempo: 180,
+                notes: [
+                    ['E4', 0.3], ['E4', 0.3], ['E4', 0.6],
+                    ['E4', 0.3], ['E4', 0.3], ['E4', 0.6],
+                    ['E4', 0.3], ['G4', 0.3], ['C4', 0.4], ['D4', 0.2],
+                    ['E4', 1.0]
+                ]
+            },
+            {
+                id: 'fur-elise',
+                title: 'Für Elise',
+                artist: 'Beethoven',
+                tempo: 130,
+                notes: [
+                    ['E5', 0.3], ['D#5', 0.3], ['E5', 0.3], ['D#5', 0.3],
+                    ['E5', 0.3], ['B4', 0.3], ['D5', 0.3], ['C5', 0.3],
+                    ['A4', 0.6], ['C4', 0.3], ['E4', 0.3], ['A4', 0.3],
+                    ['B4', 0.6]
+                ]
+            },
+            {
+                id: 'amazing-grace',
+                title: 'Amazing Grace',
+                artist: 'Traditional',
+                tempo: 90,
+                notes: [
+                    ['G4', 0.5], ['C5', 0.75], ['E5', 0.25], ['C5', 0.5],
+                    ['E5', 0.5], ['D5', 1.0],
+                    ['C5', 0.5], ['A4', 0.75], ['G4', 0.25], ['G4', 0.5],
+                    ['C5', 1.0]
+                ]
+            },
+            {
+                id: 'london-bridge',
+                title: 'London Bridge Is Falling Down',
+                artist: 'Traditional',
+                tempo: 140,
+                notes: [
+                    ['G4', 0.4], ['A4', 0.4], ['G4', 0.4], ['F4', 0.4],
+                    ['E4', 0.4], ['F4', 0.4], ['G4', 0.8],
+                    ['D4', 0.4], ['E4', 0.4], ['F4', 0.8],
+                    ['E4', 0.4], ['F4', 0.4], ['G4', 0.8]
+                ]
+            },
+            {
+                id: 'auld-lang-syne',
+                title: 'Auld Lang Syne',
+                artist: 'Traditional',
+                tempo: 100,
+                notes: [
+                    ['G4', 0.5], ['C5', 0.75], ['C5', 0.25], ['C5', 0.5],
+                    ['E5', 0.5], ['D5', 0.75], ['C5', 0.25], ['D5', 0.5],
+                    ['E5', 0.25], ['D5', 0.25], ['C5', 0.75], ['C5', 0.25],
+                    ['E5', 0.5], ['G5', 0.5]
+                ]
+            },
+            {
+                id: 'when-saints',
+                title: 'When the Saints Go Marching In',
+                artist: 'Traditional',
+                tempo: 120,
+                notes: [
+                    ['C4', 0.4], ['E4', 0.4], ['F4', 0.4], ['G4', 1.2],
+                    ['C4', 0.4], ['E4', 0.4], ['F4', 0.4], ['G4', 1.2],
+                    ['C4', 0.4], ['E4', 0.4], ['F4', 0.4], ['G4', 0.6],
+                    ['E4', 0.6], ['C4', 0.6], ['E4', 0.6], ['D4', 1.2]
+                ]
+            }
+        ];
+
+        // Note name mappings for Für Elise special notes
+        NOTE_FREQS['D#5'] = 622.25;
+
+        // ============ GAME STATE ============
+        const DURATIONS = [1, 2, 4, 7, 11, 16]; // seconds per attempt
+        const MAX_ATTEMPTS = 6;
+        const STORAGE_KEY = 'melody-master-stats';
+        const GAME_STATE_KEY = 'melody-master-today';
+        const EPOCH_DATE = '2025-01-01';
+
+        let audioContext = null;
+        let currentAttempt = 0;
+        let guesses = [];
+        let gameStatus = 'playing'; // 'playing', 'won', 'lost'
+        let todaySong = null;
+        let selectedSongId = null;
+        let isPlaying = false;
+        let scheduledNodes = [];
+        let countdownInterval = null; // Track interval to prevent memory leak
+
+        // ============ DAILY CHALLENGE ============
+        function getDaysSinceEpoch() {
+            // Use UTC to ensure same challenge worldwide
+            const epoch = Date.UTC(2025, 0, 1); // Jan 1, 2025 UTC
+            const now = new Date();
+            const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            const diff = todayUTC - epoch;
+            return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        function seededRandom(seed) {
+            const x = Math.sin(seed) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function getTodaySong() {
+            const dayNum = getDaysSinceEpoch();
+            const seed = dayNum * 9973; // Prime multiplier
+            const index = Math.floor(seededRandom(seed) * SONGS.length);
+            return SONGS[index];
+        }
+
+        // ============ AUDIO ENGINE ============
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        function stopPlayback() {
+            scheduledNodes.forEach(node => {
+                try {
+                    node.stop();
+                    node.disconnect();
+                } catch (e) {}
+            });
+            scheduledNodes = [];
+            isPlaying = false;
+            updatePlayButton();
+        }
+
+        function playMelody() {
+            initAudio();
+            stopPlayback();
+
+            // Clamp to valid index to prevent undefined when game is over
+            const attemptIndex = Math.min(currentAttempt, MAX_ATTEMPTS - 1);
+            const duration = DURATIONS[attemptIndex];
+            const song = todaySong;
+
+            isPlaying = true;
+            updatePlayButton();
+            animateWaveform(true);
+
+            let currentTime = audioContext.currentTime + 0.05;
+            let totalTime = 0;
+
+            for (const [noteName, noteDuration] of song.notes) {
+                if (totalTime >= duration) break;
+
+                const freq = NOTE_FREQS[noteName];
+                if (!freq) continue;
+
+                const actualDuration = Math.min(noteDuration, duration - totalTime);
+
+                // Create oscillator
+                const osc = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, currentTime);
+
+                // Envelope with safe timing (prevent scheduling in past for short notes)
+                const attackTime = Math.min(0.02, actualDuration * 0.1);
+                const releaseTime = Math.min(0.05, actualDuration * 0.2);
+                gainNode.gain.setValueAtTime(0, currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, currentTime + attackTime);
+                gainNode.gain.setValueAtTime(0.3, currentTime + actualDuration - releaseTime);
+                gainNode.gain.linearRampToValueAtTime(0, currentTime + actualDuration);
+
+                osc.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                osc.start(currentTime);
+                osc.stop(currentTime + actualDuration);
+
+                scheduledNodes.push(osc);
+
+                currentTime += actualDuration;
+                totalTime += actualDuration;
+            }
+
+            // Stop animation after melody ends
+            setTimeout(() => {
+                isPlaying = false;
+                updatePlayButton();
+                animateWaveform(false);
+            }, duration * 1000);
+        }
+
+        function updatePlayButton() {
+            const btn = document.getElementById('play-btn');
+            const icon = document.getElementById('play-icon');
+
+            if (isPlaying) {
+                btn.classList.add('playing');
+                icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+            } else {
+                btn.classList.remove('playing');
+                icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            }
+        }
+
+        // ============ WAVEFORM VISUALIZATION ============
+        function createWaveform() {
+            const container = document.getElementById('waveform');
+            container.innerHTML = '';
+
+            for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'waveform-bar';
+                bar.style.height = '4px';
+                container.appendChild(bar);
+            }
+        }
+
+        function animateWaveform(active) {
+            const bars = document.querySelectorAll('.waveform-bar');
+
+            if (!active) {
+                bars.forEach(bar => bar.style.height = '4px');
+                return;
+            }
+
+            function animate() {
+                if (!isPlaying) return;
+
+                bars.forEach(bar => {
+                    const height = Math.random() * 50 + 10;
+                    bar.style.height = height + 'px';
+                });
+
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        // ============ GAME LOGIC ============
+        function initGame() {
+            todaySong = getTodaySong();
+
+            // Check for saved game state
+            const saved = loadGameState();
+            if (saved && saved.date === getTodayString()) {
+                currentAttempt = saved.currentAttempt;
+                guesses = saved.guesses;
+                gameStatus = saved.gameStatus;
+            } else {
+                currentAttempt = 0;
+                guesses = [];
+                gameStatus = 'playing';
+            }
+
+            renderGame();
+            updateChallengeNumber();
+
+            if (gameStatus !== 'playing') {
+                setTimeout(() => showResult(), 500);
+            }
+        }
+
+        function getTodayString() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function submitGuess() {
+            if (!selectedSongId || gameStatus !== 'playing') return;
+
+            const song = SONGS.find(s => s.id === selectedSongId);
+            if (!song) return;
+
+            const isCorrect = song.id === todaySong.id;
+
+            guesses.push({
+                songId: selectedSongId,
+                title: song.title,
+                isCorrect: isCorrect,
+                type: 'guess'
+            });
+
+            if (isCorrect) {
+                gameStatus = 'won';
+                updateStats(true, currentAttempt + 1);
+            } else {
+                currentAttempt++;
+                if (currentAttempt >= MAX_ATTEMPTS) {
+                    gameStatus = 'lost';
+                    updateStats(false, MAX_ATTEMPTS);
+                }
+            }
+
+            selectedSongId = null;
+            document.getElementById('guess-input').value = '';
+            document.getElementById('submit-btn').disabled = true;
+
+            saveGameState();
+            renderGame();
+
+            if (gameStatus !== 'playing') {
+                setTimeout(() => showResult(), 500);
+            }
+        }
+
+        function skipAttempt() {
+            if (gameStatus !== 'playing') return;
+
+            guesses.push({
+                songId: null,
+                title: null,
+                isCorrect: false,
+                type: 'skip'
+            });
+
+            currentAttempt++;
+
+            if (currentAttempt >= MAX_ATTEMPTS) {
+                gameStatus = 'lost';
+                updateStats(false, MAX_ATTEMPTS);
+            }
+
+            saveGameState();
+            renderGame();
+
+            if (gameStatus !== 'playing') {
+                setTimeout(() => showResult(), 500);
+            }
+        }
+
+        // ============ RENDERING ============
+        function renderGame() {
+            renderAttempts();
+            renderGuessHistory();
+            renderDuration();
+
+            const guessSection = document.getElementById('guess-section');
+            if (gameStatus !== 'playing') {
+                guessSection.style.display = 'none';
+            } else {
+                guessSection.style.display = 'block';
+            }
+        }
+
+        function renderAttempts() {
+            const container = document.getElementById('attempts-container');
+            container.innerHTML = '';
+
+            for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'attempt-slot';
+
+                if (i < guesses.length) {
+                    if (guesses[i].isCorrect) {
+                        slot.classList.add('correct');
+                    } else if (guesses[i].type === 'skip') {
+                        slot.classList.add('skipped');
+                    } else {
+                        slot.classList.add('used');
+                    }
+                } else if (i === currentAttempt && gameStatus === 'playing') {
+                    slot.classList.add('current');
+                }
+
+                container.appendChild(slot);
+            }
+        }
+
+        function renderGuessHistory() {
+            const container = document.getElementById('guess-history');
+            container.innerHTML = '';
+
+            guesses.forEach((guess, index) => {
+                const item = document.createElement('div');
+                item.className = 'guess-item';
+
+                if (guess.isCorrect) {
+                    item.classList.add('correct');
+                    item.textContent = guess.title;
+                } else if (guess.type === 'skip') {
+                    item.classList.add('skipped');
+                    item.textContent = 'Skipped';
+                } else {
+                    item.classList.add('wrong');
+                    item.textContent = guess.title;
+                }
+
+                container.appendChild(item);
+            });
+        }
+
+        function renderDuration() {
+            const display = document.getElementById('duration-display');
+            const duration = DURATIONS[Math.min(currentAttempt, MAX_ATTEMPTS - 1)];
+            display.textContent = duration + (duration === 1 ? ' second' : ' seconds');
+        }
+
+        function updateChallengeNumber() {
+            const dayNum = getDaysSinceEpoch();
+            document.getElementById('challenge-number').textContent = `Daily Challenge #${dayNum}`;
+        }
+
+        // ============ AUTOCOMPLETE ============
+        function setupAutocomplete() {
+            const input = document.getElementById('guess-input');
+            const dropdown = document.getElementById('autocomplete-dropdown');
+            let selectedIndex = -1;
+
+            input.addEventListener('input', () => {
+                const query = input.value.toLowerCase().trim();
+
+                if (query.length < 2) {
+                    dropdown.classList.remove('show');
+                    return;
+                }
+
+                const matches = SONGS.filter(song =>
+                    song.title.toLowerCase().includes(query) ||
+                    song.artist.toLowerCase().includes(query)
+                ).slice(0, 5);
+
+                if (matches.length === 0) {
+                    dropdown.classList.remove('show');
+                    return;
+                }
+
+                dropdown.innerHTML = matches.map((song, i) => `
+                    <div class="autocomplete-item${i === selectedIndex ? ' selected' : ''}"
+                         data-id="${song.id}">
+                        <div class="title">${song.title}</div>
+                        <div class="artist">${song.artist}</div>
+                    </div>
+                `).join('');
+
+                dropdown.classList.add('show');
+                selectedIndex = -1;
+
+                // Click handlers
+                dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        selectSong(item.dataset.id);
+                    });
+                });
+            });
+
+            input.addEventListener('keydown', (e) => {
+                const items = dropdown.querySelectorAll('.autocomplete-item');
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    updateSelected(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, 0);
+                    updateSelected(items);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedIndex >= 0 && items[selectedIndex]) {
+                        selectSong(items[selectedIndex].dataset.id);
+                    } else if (selectedSongId) {
+                        submitGuess();
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            function updateSelected(items) {
+                items.forEach((item, i) => {
+                    item.classList.toggle('selected', i === selectedIndex);
+                });
+            }
+
+            // Close dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.input-wrapper')) {
+                    dropdown.classList.remove('show');
+                }
+            });
+        }
+
+        function selectSong(songId) {
+            const song = SONGS.find(s => s.id === songId);
+            if (!song) return;
+
+            selectedSongId = songId;
+            document.getElementById('guess-input').value = song.title;
+            document.getElementById('autocomplete-dropdown').classList.remove('show');
+            document.getElementById('submit-btn').disabled = false;
+        }
+
+        // ============ RESULTS & SHARING ============
+        function showResult() {
+            const modal = document.getElementById('result-modal');
+            const content = document.getElementById('modal-content');
+
+            content.classList.remove('win', 'lose');
+            content.classList.add(gameStatus === 'won' ? 'win' : 'lose');
+
+            document.getElementById('result-title').textContent =
+                gameStatus === 'won' ? 'You got it!' : 'Better luck tomorrow!';
+
+            document.getElementById('reveal-title').textContent = todaySong.title;
+            document.getElementById('reveal-artist').textContent = todaySong.artist;
+
+            document.getElementById('emoji-result').textContent = generateEmojiGrid();
+
+            const stats = loadStats();
+            document.getElementById('stat-played').textContent = stats.played;
+            document.getElementById('stat-win-pct').textContent =
+                stats.played > 0 ? Math.round((stats.won / stats.played) * 100) + '%' : '0%';
+            document.getElementById('stat-streak').textContent = stats.currentStreak;
+
+            modal.classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('result-modal').classList.remove('show');
+        }
+
+        function generateEmojiGrid() {
+            return guesses.map(g => {
+                if (g.isCorrect) return '🟩';
+                if (g.type === 'skip') return '⬛';
+                return '🟥';
+            }).join('');
+        }
+
+        function shareResult() {
+            const dayNum = getDaysSinceEpoch();
+            const attempts = gameStatus === 'won' ? guesses.length : 'X';
+            const text = `Melody Master #${dayNum} ${attempts}/${MAX_ATTEMPTS}\n\n${generateEmojiGrid()}\n\nmelodymaster.game`;
+
+            if (navigator.share) {
+                navigator.share({ text }).catch(() => copyToClipboard(text));
+            } else {
+                copyToClipboard(text);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers or permission denied
+                showToast('Could not copy - try selecting manually');
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // ============ STATS ============
+        function loadStats() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                return data ? JSON.parse(data) : {
+                    played: 0,
+                    won: 0,
+                    currentStreak: 0,
+                    maxStreak: 0,
+                    distribution: [0, 0, 0, 0, 0, 0],
+                    lastPlayed: null
+                };
+            } catch {
+                return { played: 0, won: 0, currentStreak: 0, maxStreak: 0, distribution: [0, 0, 0, 0, 0, 0], lastPlayed: null };
+            }
+        }
+
+        function saveStats(stats) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+            } catch {}
+        }
+
+        function updateStats(won, attempts) {
+            const stats = loadStats();
+            const today = getTodayString();
+
+            // Prevent double counting
+            if (stats.lastPlayed === today) return;
+
+            stats.played++;
+
+            // Check if streak should continue (played yesterday) or reset
+            const wasYesterday = isYesterday(stats.lastPlayed);
+
+            if (won) {
+                stats.won++;
+                // Only continue streak if played yesterday, otherwise start fresh
+                stats.currentStreak = wasYesterday ? stats.currentStreak + 1 : 1;
+                stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
+                stats.distribution[attempts - 1]++;
+            } else {
+                stats.currentStreak = 0;
+            }
+
+            stats.lastPlayed = today;
+            saveStats(stats);
+        }
+
+        function isYesterday(dateString) {
+            if (!dateString) return false;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+            return dateString === yesterdayStr;
+        }
+
+        function showStats() {
+            const stats = loadStats();
+
+            document.getElementById('stats-played').textContent = stats.played;
+            document.getElementById('stats-win-pct').textContent =
+                stats.played > 0 ? Math.round((stats.won / stats.played) * 100) + '%' : '0%';
+            document.getElementById('stats-current-streak').textContent = stats.currentStreak;
+            document.getElementById('stats-max-streak').textContent = stats.maxStreak;
+
+            renderDistributionChart(stats.distribution);
+            startCountdown();
+
+            document.getElementById('stats-modal').classList.add('show');
+        }
+
+        function closeStatsModal() {
+            document.getElementById('stats-modal').classList.remove('show');
+        }
+
+        function renderDistributionChart(distribution) {
+            const container = document.getElementById('distribution-chart');
+            const max = Math.max(...distribution, 1);
+
+            container.innerHTML = distribution.map((count, i) => {
+                const width = Math.max((count / max) * 100, 8);
+                const isCurrentAttempt = gameStatus === 'won' && guesses.length === i + 1;
+
+                return `
+                    <div class="distribution-row">
+                        <span class="attempt-num">${i + 1}</span>
+                        <div class="bar-container">
+                            <div class="bar${isCurrentAttempt ? ' highlight' : ''}" style="width: ${width}%">${count}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function startCountdown() {
+            // Clear existing interval to prevent memory leak
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+
+            function update() {
+                const now = new Date();
+                const tomorrow = new Date(now);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(0, 0, 0, 0);
+
+                const diff = tomorrow - now;
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                document.getElementById('countdown-time').textContent =
+                    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+
+            update();
+            countdownInterval = setInterval(update, 1000);
+        }
+
+        // ============ GAME STATE PERSISTENCE ============
+        function saveGameState() {
+            try {
+                const state = {
+                    date: getTodayString(),
+                    currentAttempt,
+                    guesses,
+                    gameStatus
+                };
+                localStorage.setItem(GAME_STATE_KEY, JSON.stringify(state));
+            } catch {}
+        }
+
+        function loadGameState() {
+            try {
+                const data = localStorage.getItem(GAME_STATE_KEY);
+                return data ? JSON.parse(data) : null;
+            } catch {
+                return null;
+            }
+        }
+
+        // ============ HELP MODAL ============
+        function showHelp() {
+            document.getElementById('help-modal').classList.add('show');
+        }
+
+        function closeHelpModal() {
+            document.getElementById('help-modal').classList.remove('show');
+        }
+
+        // ============ INITIALIZE ============
+        document.addEventListener('DOMContentLoaded', () => {
+            createWaveform();
+            setupAutocomplete();
+            initGame();
+        });
+    </script>
+</body>
+</html>
