@@ -551,6 +551,7 @@
             </div>
             <div class="modal-btns">
                 <button class="btn btn-submit" onclick="shareResult()">Share Result</button>
+                <button class="btn btn-skip" id="btn-play-again" onclick="playAgain()" style="display: none;">Play Again</button>
                 <button class="btn btn-skip" onclick="closeResultModal()">Close</button>
             </div>
         </div>
@@ -617,25 +618,33 @@
             this.ctx = null;
             this.masterGain = null;
             this.volume = 0.7;
-            this.activeNodes = [];
+            this.activeNodes = []; // Stores {osc, gain} pairs
+            this.supported = !!(window.AudioContext || window.webkitAudioContext);
         }
 
         init() {
-            if (this.ctx) return;
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = this.volume;
-            this.masterGain.connect(this.ctx.destination);
+            if (this.ctx) return true;
+            if (!this.supported) return false;
+            try {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = this.volume;
+                this.masterGain.connect(this.ctx.destination);
+                return true;
+            } catch (e) {
+                this.supported = false;
+                return false;
+            }
         }
 
         setVolume(v) {
-            this.volume = v;
-            if (this.masterGain) this.masterGain.gain.value = v;
+            this.volume = Math.max(0, Math.min(1, v)); // Clamp 0-1
+            if (this.masterGain) this.masterGain.gain.value = this.volume;
         }
 
         stop() {
-            this.activeNodes.forEach(n => {
-                try { n.stop(); n.disconnect(); } catch(e) {}
+            this.activeNodes.forEach(({osc, gain}) => {
+                try { osc.stop(); osc.disconnect(); gain.disconnect(); } catch(e) {}
             });
             this.activeNodes = [];
         }
@@ -652,18 +661,30 @@
                 osc.type = i === 0 ? 'triangle' : 'sine';
                 osc.frequency.value = freq * h;
 
-                // ADSR Envelope
-                const attack = 0.02;
-                const decay = 0.1;
-                const sustain = 0.6;
-                const release = 0.3;
+                // ADSR Envelope - scale to fit note duration
                 const peakGain = 0.15 * gains[i];
+                const minDuration = 0.15; // Minimum for full envelope
 
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
-                gain.gain.linearRampToValueAtTime(peakGain * sustain, startTime + attack + decay);
-                gain.gain.setValueAtTime(peakGain * sustain, startTime + duration - release);
-                gain.gain.linearRampToValueAtTime(0, startTime + duration);
+                if (duration >= minDuration) {
+                    // Full ADSR envelope
+                    const attack = Math.min(0.02, duration * 0.1);
+                    const decay = Math.min(0.1, duration * 0.2);
+                    const release = Math.min(0.3, duration * 0.3);
+                    const sustainTime = Math.max(0, duration - attack - decay - release);
+                    const sustain = 0.6;
+
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+                    gain.gain.linearRampToValueAtTime(peakGain * sustain, startTime + attack + decay);
+                    gain.gain.setValueAtTime(peakGain * sustain, startTime + attack + decay + sustainTime);
+                    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+                } else {
+                    // Short note: simple attack-release
+                    const attack = duration * 0.3;
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+                    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+                }
 
                 osc.connect(gain);
                 gain.connect(this.masterGain);
@@ -671,15 +692,20 @@
                 osc.start(startTime);
                 osc.stop(startTime + duration + 0.1);
 
-                this.activeNodes.push(osc);
+                this.activeNodes.push({osc, gain});
             });
         }
 
         // Play melody up to maxDuration seconds
-        playMelody(melody, bpm, maxDuration) {
-            this.init();
-            if (this.ctx.state === 'suspended') this.ctx.resume();
+        async playMelody(melody, bpm, maxDuration) {
+            if (!this.init()) return 0;
+            if (this.ctx.state === 'suspended') {
+                await this.ctx.resume();
+            }
             this.stop();
+
+            // Validate BPM
+            if (!bpm || bpm <= 0) bpm = 120;
 
             const beatDuration = 60 / bpm;
             let currentTime = this.ctx.currentTime + 0.05;
@@ -689,21 +715,22 @@
                 if (elapsed >= maxDuration) break;
 
                 const [noteName, beats] = note;
-                const freq = NOTE_FREQ[noteName];
-                if (!freq) continue;
-
                 const noteDuration = beats * beatDuration;
-                const playDuration = Math.min(noteDuration, maxDuration - elapsed);
 
-                if (playDuration > 0.05) {
-                    this.playNote(freq, currentTime, playDuration * 0.9);
+                // Always advance time, even for invalid notes
+                const freq = NOTE_FREQ[noteName];
+                if (freq) {
+                    const playDuration = Math.min(noteDuration, maxDuration - elapsed);
+                    if (playDuration > 0.05) {
+                        this.playNote(freq, currentTime, playDuration * 0.9);
+                    }
                 }
 
                 currentTime += noteDuration;
                 elapsed += noteDuration;
             }
 
-            return elapsed;
+            return Math.min(elapsed, maxDuration);
         }
     }
 
@@ -976,6 +1003,7 @@
     let selectedSong = null;
     let isPlaying = false;
     let waveformInterval = null;
+    let playbackTimeout = null; // Track setTimeout to prevent race conditions
 
     // ===================== INITIALIZATION =====================
     document.addEventListener('DOMContentLoaded', () => {
@@ -1027,18 +1055,39 @@
     }
 
     // ===================== SAVE/LOAD STATE =====================
+    // Use UTC consistently to avoid timezone bugs around midnight
     function getTodayKey() {
         const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
     }
 
     function loadDailyState() {
         try {
             const saved = JSON.parse(localStorage.getItem('mm-daily') || '{}');
             if (saved.date === getTodayKey()) {
-                attempt = saved.attempt || 0;
-                guesses = saved.guesses || [];
-                gameStatus = saved.status || 'playing';
+                // Validate attempt is valid number in range
+                attempt = (typeof saved.attempt === 'number' &&
+                          saved.attempt >= 0 &&
+                          saved.attempt <= MAX_GUESSES)
+                          ? Math.floor(saved.attempt) : 0;
+
+                // Validate guesses array structure
+                guesses = Array.isArray(saved.guesses)
+                    ? saved.guesses.filter(g =>
+                        g && typeof g === 'object' &&
+                        (g.type === 'skip' || g.type === 'guess') &&
+                        typeof g.correct === 'boolean'
+                      ).slice(0, MAX_GUESSES)
+                    : [];
+
+                // Validate gameStatus enum
+                gameStatus = ['playing', 'won', 'lost'].includes(saved.status)
+                    ? saved.status : 'playing';
+
+                // Show result modal if game already completed
+                if (gameStatus !== 'playing') {
+                    setTimeout(showResultModal, 500);
+                }
             } else {
                 resetGame();
             }
@@ -1086,13 +1135,19 @@
 
     function isYesterday(dateStr) {
         if (!dateStr) return false;
-        const y = new Date();
-        y.setDate(y.getDate() - 1);
-        return dateStr === `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+        const now = new Date();
+        const yesterday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+        return dateStr === `${yesterday.getUTCFullYear()}-${String(yesterday.getUTCMonth() + 1).padStart(2, '0')}-${String(yesterday.getUTCDate()).padStart(2, '0')}`;
     }
 
     // ===================== AUDIO PLAYBACK =====================
-    function playSnippet() {
+    async function playSnippet() {
+        // Cancel any pending playback timeout
+        if (playbackTimeout) {
+            clearTimeout(playbackTimeout);
+            playbackTimeout = null;
+        }
+
         if (isPlaying) {
             synth.stop();
             stopWaveform();
@@ -1101,18 +1156,26 @@
             return;
         }
 
-        const duration = DURATIONS[Math.min(attempt, MAX_GUESSES - 1)];
+        if (!synth.supported) {
+            showToast('Audio not supported in this browser');
+            return;
+        }
+
+        const duration = DURATIONS[Math.max(0, Math.min(attempt, MAX_GUESSES - 1))];
         isPlaying = true;
         updatePlayBtn();
         startWaveform();
 
-        const actualDuration = synth.playMelody(currentSong.melody, currentSong.bpm, duration);
+        const actualDuration = await synth.playMelody(currentSong.melody, currentSong.bpm, duration);
 
-        setTimeout(() => {
-            isPlaying = false;
-            updatePlayBtn();
-            stopWaveform();
-        }, Math.min(duration, actualDuration) * 1000 + 100);
+        playbackTimeout = setTimeout(() => {
+            if (isPlaying) { // Only reset if still playing (not manually stopped)
+                isPlaying = false;
+                updatePlayBtn();
+                stopWaveform();
+            }
+            playbackTimeout = null;
+        }, actualDuration * 1000 + 100);
     }
 
     function updatePlayBtn() {
@@ -1141,6 +1204,10 @@
     }
 
     function startWaveform() {
+        // Clear any existing interval first to prevent multiple intervals
+        if (waveformInterval) {
+            clearInterval(waveformInterval);
+        }
         const bars = document.querySelectorAll('.wave-bar');
         waveformInterval = setInterval(() => {
             bars.forEach(bar => {
@@ -1150,13 +1217,23 @@
     }
 
     function stopWaveform() {
-        clearInterval(waveformInterval);
+        if (waveformInterval) {
+            clearInterval(waveformInterval);
+            waveformInterval = null; // Clear reference
+        }
         document.querySelectorAll('.wave-bar').forEach(bar => bar.style.height = '4px');
     }
 
     // ===================== GAME LOGIC =====================
     function submitGuess() {
         if (!selectedSong || gameStatus !== 'playing') return;
+
+        // Prevent duplicate guesses of the same wrong song
+        const alreadyGuessed = guesses.some(g => g.type === 'guess' && g.title === selectedSong.title);
+        if (alreadyGuessed) {
+            showToast('You already guessed this song!');
+            return;
+        }
 
         const isCorrect = selectedSong.id === currentSong.id;
         guesses.push({ title: selectedSong.title, artist: selectedSong.artist, correct: isCorrect, type: 'guess' });
@@ -1287,10 +1364,25 @@
     }
 
     // ===================== AUTOCOMPLETE =====================
+    // HTML escape function to prevent XSS
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     function setupAutocomplete() {
         const input = document.getElementById('search-input');
         const dropdown = document.getElementById('autocomplete');
         let selectedIdx = -1;
+
+        // Use event delegation to prevent memory leak from adding listeners on every keystroke
+        dropdown.addEventListener('click', (e) => {
+            const item = e.target.closest('.ac-item');
+            if (item && item.dataset.id) {
+                selectSong(item.dataset.id);
+            }
+        });
 
         input.addEventListener('input', () => {
             const q = input.value.toLowerCase().trim();
@@ -1308,19 +1400,17 @@
                 return;
             }
 
+            // Use escapeHtml to prevent XSS
             dropdown.innerHTML = matches.map((s, i) => `
-                <div class="ac-item${i === selectedIdx ? ' selected' : ''}" data-id="${s.id}">
-                    <div class="ac-title">${s.title}</div>
-                    <div class="ac-artist">${s.artist}</div>
+                <div class="ac-item${i === selectedIdx ? ' selected' : ''}" data-id="${escapeHtml(s.id)}">
+                    <div class="ac-title">${escapeHtml(s.title)}</div>
+                    <div class="ac-artist">${escapeHtml(s.artist)}</div>
                 </div>
             `).join('');
 
             dropdown.classList.add('show');
             selectedIdx = -1;
-
-            dropdown.querySelectorAll('.ac-item').forEach(item => {
-                item.addEventListener('click', () => selectSong(item.dataset.id));
-            });
+            // No more addEventListener here - using event delegation above
         });
 
         input.addEventListener('keydown', e => {
@@ -1391,11 +1481,23 @@
         document.getElementById('result-win').textContent = stats.played ? Math.round((stats.won || 0) / stats.played * 100) + '%' : '0%';
         document.getElementById('result-streak').textContent = stats.streak || 0;
 
+        // Show Play Again button only for practice mode
+        document.getElementById('btn-play-again').style.display = mode === 'practice' ? 'block' : 'none';
+
         modal.classList.add('show');
     }
 
     function closeResultModal() {
         document.getElementById('result-modal').classList.remove('show');
+    }
+
+    function playAgain() {
+        closeResultModal();
+        if (mode === 'practice') {
+            currentSong = getRandomSong();
+            resetGame();
+            renderGame();
+        }
     }
 
     function showStats() {
