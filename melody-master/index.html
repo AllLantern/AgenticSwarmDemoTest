@@ -880,13 +880,15 @@
         let selectedSongId = null;
         let isPlaying = false;
         let scheduledNodes = [];
+        let countdownInterval = null; // Track interval to prevent memory leak
 
         // ============ DAILY CHALLENGE ============
         function getDaysSinceEpoch() {
-            const epoch = new Date(EPOCH_DATE);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const diff = today - epoch;
+            // Use UTC to ensure same challenge worldwide
+            const epoch = Date.UTC(2025, 0, 1); // Jan 1, 2025 UTC
+            const now = new Date();
+            const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            const diff = todayUTC - epoch;
             return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
         }
 
@@ -928,7 +930,9 @@
             initAudio();
             stopPlayback();
 
-            const duration = DURATIONS[currentAttempt];
+            // Clamp to valid index to prevent undefined when game is over
+            const attemptIndex = Math.min(currentAttempt, MAX_ATTEMPTS - 1);
+            const duration = DURATIONS[attemptIndex];
             const song = todaySong;
 
             isPlaying = true;
@@ -953,10 +957,12 @@
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(freq, currentTime);
 
-                // Envelope
+                // Envelope with safe timing (prevent scheduling in past for short notes)
+                const attackTime = Math.min(0.02, actualDuration * 0.1);
+                const releaseTime = Math.min(0.05, actualDuration * 0.2);
                 gainNode.gain.setValueAtTime(0, currentTime);
-                gainNode.gain.linearRampToValueAtTime(0.3, currentTime + 0.02);
-                gainNode.gain.setValueAtTime(0.3, currentTime + actualDuration - 0.05);
+                gainNode.gain.linearRampToValueAtTime(0.3, currentTime + attackTime);
+                gainNode.gain.setValueAtTime(0.3, currentTime + actualDuration - releaseTime);
                 gainNode.gain.linearRampToValueAtTime(0, currentTime + actualDuration);
 
                 osc.connect(gainNode);
@@ -1333,6 +1339,9 @@
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
                 showToast('Copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers or permission denied
+                showToast('Could not copy - try selecting manually');
             });
         }
 
@@ -1374,18 +1383,30 @@
             if (stats.lastPlayed === today) return;
 
             stats.played++;
-            stats.lastPlayed = today;
+
+            // Check if streak should continue (played yesterday) or reset
+            const wasYesterday = isYesterday(stats.lastPlayed);
 
             if (won) {
                 stats.won++;
-                stats.currentStreak++;
+                // Only continue streak if played yesterday, otherwise start fresh
+                stats.currentStreak = wasYesterday ? stats.currentStreak + 1 : 1;
                 stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
                 stats.distribution[attempts - 1]++;
             } else {
                 stats.currentStreak = 0;
             }
 
+            stats.lastPlayed = today;
             saveStats(stats);
+        }
+
+        function isYesterday(dateString) {
+            if (!dateString) return false;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+            return dateString === yesterdayStr;
         }
 
         function showStats() {
@@ -1427,6 +1448,11 @@
         }
 
         function startCountdown() {
+            // Clear existing interval to prevent memory leak
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+
             function update() {
                 const now = new Date();
                 const tomorrow = new Date(now);
@@ -1443,7 +1469,7 @@
             }
 
             update();
-            setInterval(update, 1000);
+            countdownInterval = setInterval(update, 1000);
         }
 
         // ============ GAME STATE PERSISTENCE ============
