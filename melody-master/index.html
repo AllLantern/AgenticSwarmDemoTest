@@ -339,6 +339,16 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
+        .volume-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--gold);
+            cursor: pointer;
+            border: 2px solid var(--bg-card);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
         /* Guess History */
         .guesses { margin-bottom: 20px; }
 
@@ -694,7 +704,7 @@
 
         <div class="player">
             <div class="waveform-container" id="waveform"></div>
-            <button class="play-btn" id="play-btn" onclick="playSnippet()">
+            <button class="play-btn" id="play-btn" onclick="playSnippet()" aria-label="Play melody">
                 <svg viewBox="0 0 24 24" id="play-icon"><polygon points="5,3 19,12 5,21"/></svg>
             </button>
             <div class="player-info">
@@ -702,7 +712,7 @@
             </div>
             <div class="volume-control">
                 <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                <input type="range" class="volume-slider" id="volume" min="0" max="100" value="70" onchange="setVolume(this.value)">
+                <input type="range" class="volume-slider" id="volume" min="0" max="100" value="70" oninput="setVolume(this.value)">
             </div>
         </div>
 
@@ -943,16 +953,35 @@
         loadGame();
     });
 
+    // Global keyboard handler for modals (Escape to close)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (document.getElementById('result-modal').classList.contains('show')) {
+                closeResultModal();
+            } else if (document.getElementById('stats-modal').classList.contains('show')) {
+                closeStatsModal();
+            } else if (document.getElementById('help-modal').classList.contains('show')) {
+                closeHelpModal();
+            }
+        }
+    });
+
     async function loadSongs() {
         try {
             const response = await fetch('songs.json');
+            if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
+            // Validate songs array exists and has content
+            if (!data.songs || !Array.isArray(data.songs) || data.songs.length === 0) {
+                throw new Error('Invalid songs data');
+            }
             SONGS = data.songs;
             document.getElementById('song-count').textContent = `${SONGS.length} melodies in the collection`;
         } catch (e) {
             // Fallback to embedded songs if fetch fails
             SONGS = getFallbackSongs();
             document.getElementById('song-count').textContent = `${SONGS.length} melodies available`;
+            console.warn('Using fallback songs:', e.message);
         }
     }
 
@@ -976,6 +1005,10 @@
     }
 
     function getDailySong() {
+        // Guard against empty SONGS array
+        if (!SONGS || SONGS.length === 0) {
+            return { id: 'error', title: 'No Songs Available', artist: 'Error', bpm: 120, melody: [], dayNum: 0 };
+        }
         const epoch = Date.UTC(2025, 0, 1);
         const now = new Date();
         const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -994,6 +1027,10 @@
     }
 
     function getRandomSong() {
+        // Guard against empty SONGS array
+        if (!SONGS || SONGS.length === 0) {
+            return { id: 'error', title: 'No Songs Available', artist: 'Error', bpm: 120, melody: [], dayNum: null };
+        }
         return { ...SONGS[Math.floor(Math.random() * SONGS.length)], dayNum: null };
     }
 

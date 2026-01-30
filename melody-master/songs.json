@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "totalSongs": 150,
-  "categories": ["Classical", "Waltz", "Folk", "Hymn", "Opera", "Children", "Holiday", "Dance", "Romantic", "Traditional"],
+  "totalSongs": 129,
+  "categories": ["Classical", "Waltz", "Folk", "Hymn", "Opera", "Children", "Holiday", "Dance", "Romantic", "Traditional", "Celebration", "Patriotic"],
   "songs": [
     {
       "id": "twinkle",
