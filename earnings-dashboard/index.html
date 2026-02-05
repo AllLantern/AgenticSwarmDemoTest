@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EarningsEdge - Real-Time FY Earnings Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-secondary: #111827;
+    --bg-card: #1a2234;
+    --bg-card-hover: #1e2a3f;
+    --border: #2a3a52;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-green: #22c55e;
+    --accent-green-dim: rgba(34,197,94,0.15);
+    --accent-red: #ef4444;
+    --accent-red-dim: rgba(239,68,68,0.15);
+    --accent-blue: #3b82f6;
+    --accent-blue-dim: rgba(59,130,246,0.15);
+    --accent-amber: #f59e0b;
+    --accent-amber-dim: rgba(245,158,11,0.15);
+    --accent-purple: #a855f7;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ===== TICKER BAR ===== */
+  .ticker-bar {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+    overflow: hidden;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .ticker-content {
+    display: inline-block;
+    animation: ticker-scroll 40s linear infinite;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .ticker-content:hover { animation-play-state: paused; }
+
+  @keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 32px;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .ticker-item:hover { background: var(--bg-card); }
+  .ticker-symbol { font-weight: 700; color: var(--text-primary); }
+  .ticker-price { color: var(--text-secondary); }
+  .ticker-change.positive { color: var(--accent-green); }
+  .ticker-change.negative { color: var(--accent-red); }
+
+  /* ===== HEADER ===== */
+  .header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 16px; }
+
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  }
+
+  .last-updated {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .search-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--text-primary);
+    font-size: 14px;
+    width: 240px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-box:focus { border-color: var(--accent-blue); }
+  .search-box::placeholder { color: var(--text-muted); }
+
+  /* ===== MAIN LAYOUT ===== */
+  .main { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
+
+  /* ===== SUMMARY CARDS ===== */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .summary-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-blue);
+  }
+
+  .summary-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .summary-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+  }
+
+  .summary-sub {
+    font-size: 13px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .positive { color: var(--accent-green); }
+  .negative { color: var(--accent-red); }
+  .neutral { color: var(--accent-amber); }
+
+  /* ===== SECTION HEADERS ===== */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    margin-top: 32px;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .section-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .section-tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border: none;
+    background: none;
+    transition: all 0.2s;
+  }
+
+  .section-tab.active {
+    background: var(--accent-blue);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .section-tab:hover:not(.active) { color: var(--text-primary); }
+
+  /* ===== COMPANY GRID ===== */
+  .company-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .company-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .company-card:hover {
+    border-color: var(--accent-blue);
+    background: var(--bg-card-hover);
+    transform: translateY(-1px);
+  }
+
+  .company-card.active {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 1px var(--accent-blue);
+  }
+
+  .company-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+
+  .company-info { display: flex; align-items: center; gap: 12px; }
+
+  .company-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    color: #fff;
+  }
+
+  .company-name {
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .company-ticker {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .company-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+
+  .badge-beat { background: var(--accent-green-dim); color: var(--accent-green); }
+  .badge-miss { background: var(--accent-red-dim); color: var(--accent-red); }
+  .badge-pending { background: var(--accent-amber-dim); color: var(--accent-amber); }
+
+  .company-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .metric-item {}
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metric-value {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    margin-top: 2px;
+  }
+
+  .metric-sub {
+    font-size: 11px;
+    margin-top: 1px;
+  }
+
+  .sparkline-container {
+    height: 40px;
+    position: relative;
+    margin-top: 4px;
+  }
+
+  .sparkline-container canvas {
+    width: 100% !important;
+    height: 40px !important;
+  }
+
+  /* ===== CHARTS SECTION ===== */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .chart-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .chart-container {
+    position: relative;
+    height: 280px;
+  }
+
+  /* ===== EARNINGS CALENDAR ===== */
+  .calendar-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .calendar-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  .calendar-table td {
+    padding: 14px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .calendar-table tr:hover td { background: var(--bg-card-hover); }
+  .calendar-table .mono { font-family: var(--font-mono); }
+
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  .status-reported { background: var(--accent-green); }
+  .status-upcoming { background: var(--accent-amber); }
+  .status-expected { background: var(--accent-blue); }
+
+  /* ===== DETAIL MODAL ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 32px;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .modal-close {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover { background: var(--accent-red-dim); color: var(--accent-red); }
+
+  .modal-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .modal-chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .modal-chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .modal-chart-container { height: 200px; position: relative; }
+
+  .modal-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .modal-kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+
+  .modal-kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .modal-kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    margin-top: 4px;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 1200px) {
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .modal-charts { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .header { padding: 16px; }
+    .main { padding: 16px; }
+    .summary-row { grid-template-columns: 1fr; }
+    .company-grid { grid-template-columns: 1fr; }
+    .search-box { width: 100%; }
+    .modal-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ===== FY TOGGLE ===== */
+  .fy-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .fy-btn {
+    padding: 6px 12px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+
+  .fy-btn.active {
+    background: var(--accent-blue);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<!-- TICKER BAR -->
+<div class="ticker-bar">
+  <div class="ticker-content" id="tickerContent"></div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div>
+      <div class="logo">EarningsEdge</div>
+      <div class="logo-sub">Real-Time FY Earnings Intelligence</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="fy-toggle">
+      <button class="fy-btn active" onclick="setFY('FY2025')">FY2025</button>
+      <button class="fy-btn" onclick="setFY('FY2024')">FY2024</button>
+      <button class="fy-btn" onclick="setFY('FY2023')">FY2023</button>
+    </div>
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+    <span class="last-updated" id="lastUpdated"></span>
+    <input type="text" class="search-box" placeholder="Search ticker or company..." id="searchBox" oninput="filterCompanies()">
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+  <!-- SUMMARY ROW -->
+  <div class="summary-row" id="summaryRow"></div>
+
+  <!-- COMPANY CARDS -->
+  <div class="section-header">
+    <h2 class="section-title">Earnings Overview</h2>
+    <div class="section-tabs">
+      <button class="section-tab active" onclick="setView('all', this)">All</button>
+      <button class="section-tab" onclick="setView('beat', this)">Beat</button>
+      <button class="section-tab" onclick="setView('miss', this)">Missed</button>
+      <button class="section-tab" onclick="setView('upcoming', this)">Upcoming</button>
+    </div>
+  </div>
+  <div class="company-grid" id="companyGrid"></div>
+
+  <!-- CHARTS -->
+  <div class="section-header">
+    <h2 class="section-title">Earnings Analytics</h2>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">EPS: Actual vs Estimate (Latest Quarter)</div>
+      <div class="chart-container"><canvas id="epsChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Revenue Performance ($B)</div>
+      <div class="chart-container"><canvas id="revenueChart"></canvas></div>
+    </div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Earnings Surprise % by Company</div>
+      <div class="chart-container"><canvas id="surpriseChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Sector Beat Rate</div>
+      <div class="chart-container"><canvas id="sectorChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- EARNINGS CALENDAR -->
+  <div class="section-header">
+    <h2 class="section-title">Earnings Calendar</h2>
+  </div>
+  <div class="chart-card">
+    <table class="calendar-table" id="calendarTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Company</th>
+          <th>Ticker</th>
+          <th>EPS Estimate</th>
+          <th>EPS Actual</th>
+          <th>Revenue Est.</th>
+          <th>Revenue Act.</th>
+          <th>Surprise</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="calendarBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalContent" onclick="event.stopPropagation()"></div>
+</div>
+
+<script>
+// ===== DATA ENGINE =====
+
+const COMPANIES = [
+  {
+    ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology', color: '#555555',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-01-30', epsEst: 2.35, epsAct: 2.40, revEst: 124.1, revAct: 124.3, reported: true },
+          { q: 'Q2', date: '2025-05-01', epsEst: 1.61, epsAct: 1.65, revEst: 94.5, revAct: 95.4, reported: true },
+          { q: 'Q3', date: '2025-07-31', epsEst: 1.39, epsAct: 1.42, revEst: 85.5, revAct: 85.8, reported: true },
+          { q: 'Q4', date: '2025-10-30', epsEst: 2.45, epsAct: null, revEst: 130.0, revAct: null, reported: false }
+        ],
+        annualEpsEst: 7.80, annualRevEst: 434.1, marketCap: 3420, pe: 34.2
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-02-01', epsEst: 2.10, epsAct: 2.18, revEst: 117.9, revAct: 119.6, reported: true },
+          { q: 'Q2', date: '2024-05-02', epsEst: 1.50, epsAct: 1.53, revEst: 90.3, revAct: 90.8, reported: true },
+          { q: 'Q3', date: '2024-08-01', epsEst: 1.35, epsAct: 1.40, revEst: 84.5, revAct: 85.8, reported: true },
+          { q: 'Q4', date: '2024-10-31', epsEst: 2.30, epsAct: 2.40, revEst: 125.0, revAct: 124.3, reported: true }
+        ],
+        annualEpsEst: 7.25, annualRevEst: 417.7, marketCap: 3180, pe: 32.8
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-02-02', epsEst: 1.94, epsAct: 1.88, revEst: 121.7, revAct: 117.2, reported: true },
+          { q: 'Q2', date: '2023-05-04', epsEst: 1.43, epsAct: 1.52, revEst: 92.8, revAct: 94.8, reported: true },
+          { q: 'Q3', date: '2023-08-03', epsEst: 1.19, epsAct: 1.26, revEst: 81.5, revAct: 81.8, reported: true },
+          { q: 'Q4', date: '2023-11-02', epsEst: 2.10, epsAct: 2.18, revEst: 118.0, revAct: 119.6, reported: true }
+        ],
+        annualEpsEst: 6.66, annualRevEst: 414.0, marketCap: 2870, pe: 30.1
+      }
+    },
+    price: 237.49, change: 1.82
+  },
+  {
+    ticker: 'MSFT', name: 'Microsoft Corp.', sector: 'Technology', color: '#0078d4',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-01-29', epsEst: 3.11, epsAct: 3.23, revEst: 68.7, revAct: 69.6, reported: true },
+          { q: 'Q2', date: '2025-04-29', epsEst: 3.22, epsAct: 3.46, revEst: 72.0, revAct: 73.2, reported: true },
+          { q: 'Q3', date: '2025-07-29', epsEst: 3.30, epsAct: 3.38, revEst: 74.0, revAct: 74.5, reported: true },
+          { q: 'Q4', date: '2025-10-28', epsEst: 3.55, epsAct: null, revEst: 78.5, revAct: null, reported: false }
+        ],
+        annualEpsEst: 13.18, annualRevEst: 293.2, marketCap: 3180, pe: 36.1
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-01-30', epsEst: 2.78, epsAct: 2.93, revEst: 61.1, revAct: 62.0, reported: true },
+          { q: 'Q2', date: '2024-04-25', epsEst: 2.82, epsAct: 2.94, revEst: 60.8, revAct: 61.9, reported: true },
+          { q: 'Q3', date: '2024-07-30', epsEst: 2.93, epsAct: 2.95, revEst: 64.3, revAct: 64.7, reported: true },
+          { q: 'Q4', date: '2024-10-30', epsEst: 3.10, epsAct: 3.30, revEst: 65.5, revAct: 65.6, reported: true }
+        ],
+        annualEpsEst: 11.63, annualRevEst: 251.7, marketCap: 2950, pe: 34.5
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-01-24', epsEst: 2.30, epsAct: 2.32, revEst: 52.9, revAct: 52.7, reported: true },
+          { q: 'Q2', date: '2023-04-25', epsEst: 2.23, epsAct: 2.45, revEst: 51.0, revAct: 52.9, reported: true },
+          { q: 'Q3', date: '2023-07-25', epsEst: 2.55, epsAct: 2.69, revEst: 55.4, revAct: 56.2, reported: true },
+          { q: 'Q4', date: '2023-10-24', epsEst: 2.65, epsAct: 2.99, revEst: 54.5, revAct: 56.5, reported: true }
+        ],
+        annualEpsEst: 9.73, annualRevEst: 213.8, marketCap: 2680, pe: 33.2
+      }
+    },
+    price: 468.35, change: 3.21
+  },
+  {
+    ticker: 'GOOGL', name: 'Alphabet Inc.', sector: 'Technology', color: '#4285f4',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-02-04', epsEst: 2.12, epsAct: 2.31, revEst: 96.5, revAct: 96.5, reported: true },
+          { q: 'Q2', date: '2025-04-29', epsEst: 2.08, epsAct: 2.15, revEst: 91.3, revAct: 94.0, reported: true },
+          { q: 'Q3', date: '2025-07-29', epsEst: 2.18, epsAct: null, revEst: 99.0, revAct: null, reported: false },
+          { q: 'Q4', date: '2025-10-28', epsEst: 2.40, epsAct: null, revEst: 106.0, revAct: null, reported: false }
+        ],
+        annualEpsEst: 8.78, annualRevEst: 392.8, marketCap: 2380, pe: 25.4
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-01-30', epsEst: 1.51, epsAct: 1.89, revEst: 78.6, revAct: 80.5, reported: true },
+          { q: 'Q2', date: '2024-04-25', epsEst: 1.84, epsAct: 1.89, revEst: 84.2, revAct: 84.7, reported: true },
+          { q: 'Q3', date: '2024-07-23', epsEst: 1.85, epsAct: 2.12, revEst: 86.3, revAct: 88.3, reported: true },
+          { q: 'Q4', date: '2024-10-29', epsEst: 2.05, epsAct: 2.12, revEst: 92.0, revAct: 96.5, reported: true }
+        ],
+        annualEpsEst: 7.25, annualRevEst: 341.1, marketCap: 2120, pe: 23.8
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-02-02', epsEst: 1.07, epsAct: 1.17, revEst: 68.9, revAct: 69.8, reported: true },
+          { q: 'Q2', date: '2023-04-25', epsEst: 1.34, epsAct: 1.44, revEst: 72.8, revAct: 74.6, reported: true },
+          { q: 'Q3', date: '2023-07-25', epsEst: 1.45, epsAct: 1.55, revEst: 75.5, revAct: 76.7, reported: true },
+          { q: 'Q4', date: '2023-10-24', epsEst: 1.59, epsAct: 1.64, revEst: 85.3, revAct: 86.3, reported: true }
+        ],
+        annualEpsEst: 5.45, annualRevEst: 302.5, marketCap: 1780, pe: 22.5
+      }
+    },
+    price: 191.24, change: -0.87
+  },
+  {
+    ticker: 'AMZN', name: 'Amazon.com Inc.', sector: 'Consumer', color: '#ff9900',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-02-06', epsEst: 1.36, epsAct: 1.59, revEst: 187.3, revAct: 187.8, reported: true },
+          { q: 'Q2', date: '2025-05-01', epsEst: 1.56, epsAct: 1.64, revEst: 155.0, revAct: 158.9, reported: true },
+          { q: 'Q3', date: '2025-07-31', epsEst: 1.65, epsAct: null, revEst: 164.0, revAct: null, reported: false },
+          { q: 'Q4', date: '2025-10-30', epsEst: 2.10, epsAct: null, revEst: 196.0, revAct: null, reported: false }
+        ],
+        annualEpsEst: 6.67, annualRevEst: 702.3, marketCap: 2240, pe: 42.5
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-02-01', epsEst: 0.83, epsAct: 0.98, revEst: 142.1, revAct: 143.3, reported: true },
+          { q: 'Q2', date: '2024-05-02', epsEst: 1.03, epsAct: 1.26, revEst: 148.5, revAct: 148.0, reported: true },
+          { q: 'Q3', date: '2024-08-01', epsEst: 1.14, epsAct: 1.43, revEst: 157.2, revAct: 158.9, reported: true },
+          { q: 'Q4', date: '2024-10-31', epsEst: 1.48, epsAct: 1.86, revEst: 186.0, revAct: 187.8, reported: true }
+        ],
+        annualEpsEst: 4.48, annualRevEst: 633.8, marketCap: 1980, pe: 38.2
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-02-02', epsEst: 0.21, epsAct: 0.31, revEst: 124.5, revAct: 127.4, reported: true },
+          { q: 'Q2', date: '2023-04-27', epsEst: 0.35, epsAct: 0.65, revEst: 131.5, revAct: 134.4, reported: true },
+          { q: 'Q3', date: '2023-07-27', epsEst: 0.58, epsAct: 0.94, revEst: 141.4, revAct: 143.1, reported: true },
+          { q: 'Q4', date: '2023-10-26', epsEst: 0.73, epsAct: 1.00, revEst: 166.2, revAct: 170.0, reported: true }
+        ],
+        annualEpsEst: 1.87, annualRevEst: 563.6, marketCap: 1540, pe: 45.3
+      }
+    },
+    price: 225.94, change: 4.12
+  },
+  {
+    ticker: 'META', name: 'Meta Platforms', sector: 'Technology', color: '#0668E1',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-01-29', epsEst: 6.73, epsAct: 6.93, revEst: 46.9, revAct: 48.4, reported: true },
+          { q: 'Q2', date: '2025-04-30', epsEst: 5.22, epsAct: 5.31, revEst: 42.5, revAct: 42.3, reported: true },
+          { q: 'Q3', date: '2025-07-30', epsEst: 5.58, epsAct: null, revEst: 45.0, revAct: null, reported: false },
+          { q: 'Q4', date: '2025-10-29', epsEst: 7.05, epsAct: null, revEst: 50.5, revAct: null, reported: false }
+        ],
+        annualEpsEst: 24.58, annualRevEst: 184.9, marketCap: 1680, pe: 27.4
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-02-01', epsEst: 4.32, epsAct: 4.71, revEst: 36.1, revAct: 36.5, reported: true },
+          { q: 'Q2', date: '2024-04-24', epsEst: 4.73, epsAct: 5.16, revEst: 38.3, revAct: 39.1, reported: true },
+          { q: 'Q3', date: '2024-07-31', epsEst: 5.21, epsAct: 6.03, revEst: 40.1, revAct: 40.6, reported: true },
+          { q: 'Q4', date: '2024-10-30', epsEst: 6.75, epsAct: 8.02, revEst: 46.1, revAct: 48.4, reported: true }
+        ],
+        annualEpsEst: 21.01, annualRevEst: 160.6, marketCap: 1520, pe: 25.1
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-02-01', epsEst: 2.02, epsAct: 2.20, revEst: 27.7, revAct: 28.6, reported: true },
+          { q: 'Q2', date: '2023-04-26', epsEst: 2.91, epsAct: 2.98, revEst: 31.0, revAct: 32.0, reported: true },
+          { q: 'Q3', date: '2023-07-26', epsEst: 3.63, epsAct: 4.39, revEst: 33.5, revAct: 34.1, reported: true },
+          { q: 'Q4', date: '2023-10-25', epsEst: 4.96, epsAct: 5.33, revEst: 38.9, revAct: 40.1, reported: true }
+        ],
+        annualEpsEst: 13.52, annualRevEst: 131.1, marketCap: 1180, pe: 22.3
+      }
+    },
+    price: 642.81, change: 8.45
+  },
+  {
+    ticker: 'NVDA', name: 'NVIDIA Corp.', sector: 'Semiconductors', color: '#76b900',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-02-26', epsEst: 0.84, epsAct: 0.89, revEst: 38.0, revAct: 39.3, reported: true },
+          { q: 'Q2', date: '2025-05-28', epsEst: 0.91, epsAct: 0.96, revEst: 43.2, revAct: 44.1, reported: true },
+          { q: 'Q3', date: '2025-08-27', epsEst: 1.02, epsAct: null, revEst: 49.5, revAct: null, reported: false },
+          { q: 'Q4', date: '2025-11-26', epsEst: 1.15, epsAct: null, revEst: 55.0, revAct: null, reported: false }
+        ],
+        annualEpsEst: 3.92, annualRevEst: 185.7, marketCap: 3580, pe: 55.2
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-02-21', epsEst: 0.55, epsAct: 0.60, revEst: 24.6, revAct: 26.0, reported: true },
+          { q: 'Q2', date: '2024-05-22', epsEst: 0.64, epsAct: 0.68, revEst: 28.6, revAct: 30.0, reported: true },
+          { q: 'Q3', date: '2024-08-28', epsEst: 0.74, epsAct: 0.81, revEst: 33.1, revAct: 35.1, reported: true },
+          { q: 'Q4', date: '2024-11-20', epsEst: 0.85, epsAct: 0.89, revEst: 38.2, revAct: 39.3, reported: true }
+        ],
+        annualEpsEst: 2.78, annualRevEst: 124.5, marketCap: 2980, pe: 48.6
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-02-22', epsEst: 0.92, epsAct: 0.88, revEst: 6.5, revAct: 7.2, reported: true },
+          { q: 'Q2', date: '2023-05-24', epsEst: 0.25, epsAct: 0.27, revEst: 11.0, revAct: 13.5, reported: true },
+          { q: 'Q3', date: '2023-08-23', epsEst: 0.36, epsAct: 0.40, revEst: 16.1, revAct: 18.1, reported: true },
+          { q: 'Q4', date: '2023-11-21', epsEst: 0.46, epsAct: 0.52, revEst: 20.4, revAct: 22.1, reported: true }
+        ],
+        annualEpsEst: 1.99, annualRevEst: 54.0, marketCap: 1280, pe: 62.1
+      }
+    },
+    price: 141.28, change: 2.56
+  },
+  {
+    ticker: 'TSLA', name: 'Tesla Inc.', sector: 'Automotive', color: '#cc0000',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-01-29', epsEst: 0.73, epsAct: 0.71, revEst: 25.6, revAct: 25.2, reported: true },
+          { q: 'Q2', date: '2025-04-22', epsEst: 0.62, epsAct: 0.52, revEst: 24.5, revAct: 23.3, reported: true },
+          { q: 'Q3', date: '2025-07-23', epsEst: 0.78, epsAct: null, revEst: 27.0, revAct: null, reported: false },
+          { q: 'Q4', date: '2025-10-22', epsEst: 0.95, epsAct: null, revEst: 30.5, revAct: null, reported: false }
+        ],
+        annualEpsEst: 3.08, annualRevEst: 107.6, marketCap: 1120, pe: 95.5
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-01-24', epsEst: 0.68, epsAct: 0.45, revEst: 25.6, revAct: 21.3, reported: true },
+          { q: 'Q2', date: '2024-04-23', epsEst: 0.52, epsAct: 0.42, revEst: 22.2, revAct: 24.9, reported: true },
+          { q: 'Q3', date: '2024-07-23', epsEst: 0.58, epsAct: 0.72, revEst: 25.4, revAct: 25.2, reported: true },
+          { q: 'Q4', date: '2024-10-23', epsEst: 0.75, epsAct: 0.73, revEst: 27.2, revAct: 25.7, reported: true }
+        ],
+        annualEpsEst: 2.53, annualRevEst: 100.4, marketCap: 980, pe: 88.2
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-01-25', epsEst: 0.86, epsAct: 0.85, revEst: 23.4, revAct: 23.3, reported: true },
+          { q: 'Q2', date: '2023-04-19', epsEst: 0.82, epsAct: 0.91, revEst: 24.2, revAct: 24.9, reported: true },
+          { q: 'Q3', date: '2023-07-19', epsEst: 0.73, epsAct: 0.66, revEst: 24.7, revAct: 23.4, reported: true },
+          { q: 'Q4', date: '2023-10-18', epsEst: 0.74, epsAct: 0.71, revEst: 25.8, revAct: 25.2, reported: true }
+        ],
+        annualEpsEst: 3.15, annualRevEst: 98.1, marketCap: 820, pe: 72.4
+      }
+    },
+    price: 352.10, change: -5.32
+  },
+  {
+    ticker: 'JPM', name: 'JPMorgan Chase', sector: 'Financials', color: '#0a4d8c',
+    fyData: {
+      FY2025: {
+        quarters: [
+          { q: 'Q1', date: '2025-01-15', epsEst: 4.11, epsAct: 4.81, revEst: 43.1, revAct: 44.0, reported: true },
+          { q: 'Q2', date: '2025-04-11', epsEst: 4.65, epsAct: 4.79, revEst: 44.5, revAct: 46.0, reported: true },
+          { q: 'Q3', date: '2025-07-15', epsEst: 4.55, epsAct: null, revEst: 44.0, revAct: null, reported: false },
+          { q: 'Q4', date: '2025-10-14', epsEst: 4.35, epsAct: null, revEst: 43.0, revAct: null, reported: false }
+        ],
+        annualEpsEst: 17.66, annualRevEst: 174.6, marketCap: 780, pe: 13.8
+      },
+      FY2024: {
+        quarters: [
+          { q: 'Q1', date: '2024-01-12', epsEst: 3.64, epsAct: 4.44, revEst: 40.0, revAct: 41.9, reported: true },
+          { q: 'Q2', date: '2024-04-12', epsEst: 4.19, epsAct: 4.40, revEst: 41.8, revAct: 43.1, reported: true },
+          { q: 'Q3', date: '2024-07-12', epsEst: 4.01, epsAct: 4.37, revEst: 40.5, revAct: 42.4, reported: true },
+          { q: 'Q4', date: '2024-10-11', epsEst: 3.89, epsAct: 4.81, revEst: 41.0, revAct: 43.7, reported: true }
+        ],
+        annualEpsEst: 15.73, annualRevEst: 163.3, marketCap: 680, pe: 12.5
+      },
+      FY2023: {
+        quarters: [
+          { q: 'Q1', date: '2023-01-13', epsEst: 3.41, epsAct: 4.10, revEst: 36.2, revAct: 38.3, reported: true },
+          { q: 'Q2', date: '2023-04-14', epsEst: 3.96, epsAct: 4.37, revEst: 39.1, revAct: 40.7, reported: true },
+          { q: 'Q3', date: '2023-07-14', epsEst: 3.88, epsAct: 4.33, revEst: 39.4, revAct: 39.9, reported: true },
+          { q: 'Q4', date: '2023-10-13', epsEst: 3.65, epsAct: 3.04, revEst: 39.6, revAct: 38.6, reported: true }
+        ],
+        annualEpsEst: 14.90, annualRevEst: 154.3, marketCap: 540, pe: 11.2
+      }
+    },
+    price: 265.78, change: 1.95
+  }
+];
+
+let currentFY = 'FY2025';
+let currentView = 'all';
+let sparklineCharts = {};
+let mainCharts = {};
+
+// ===== HELPERS =====
+function fmt(n, decimals = 2) {
+  if (n === null || n === undefined) return '--';
+  return n.toFixed(decimals);
+}
+
+function fmtB(n) {
+  if (n === null || n === undefined) return '--';
+  return '$' + n.toFixed(1) + 'B';
+}
+
+function surprise(est, act) {
+  if (act === null || est === null || est === 0) return null;
+  return ((act - est) / Math.abs(est) * 100);
+}
+
+function getReportedQuarters(company) {
+  return company.fyData[currentFY].quarters.filter(q => q.reported);
+}
+
+function getLatestReported(company) {
+  const reported = getReportedQuarters(company);
+  return reported.length > 0 ? reported[reported.length - 1] : null;
+}
+
+function getStatus(company) {
+  const latest = getLatestReported(company);
+  if (!latest) return 'pending';
+  const s = surprise(latest.epsEst, latest.epsAct);
+  return s >= 0 ? 'beat' : 'miss';
+}
+
+function updateTimestamp() {
+  const now = new Date();
+  document.getElementById('lastUpdated').textContent =
+    now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ===== FY TOGGLE =====
+function setFY(fy) {
+  currentFY = fy;
+  document.querySelectorAll('.fy-btn').forEach(b => b.classList.toggle('active', b.textContent === fy));
+  renderAll();
+}
+
+// ===== VIEW FILTER =====
+function setView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderCompanyGrid();
+}
+
+function filterCompanies() {
+  renderCompanyGrid();
+}
+
+function getFilteredCompanies() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  let filtered = COMPANIES.filter(c =>
+    c.ticker.toLowerCase().includes(search) || c.name.toLowerCase().includes(search)
+  );
+  if (currentView === 'beat') filtered = filtered.filter(c => getStatus(c) === 'beat');
+  else if (currentView === 'miss') filtered = filtered.filter(c => getStatus(c) === 'miss');
+  else if (currentView === 'upcoming') filtered = filtered.filter(c => {
+    const qs = c.fyData[currentFY].quarters;
+    return qs.some(q => !q.reported);
+  });
+  return filtered;
+}
+
+// ===== TICKER BAR =====
+function renderTicker() {
+  const items = COMPANIES.map(c => {
+    const changeClass = c.change >= 0 ? 'positive' : 'negative';
+    const arrow = c.change >= 0 ? '+' : '';
+    return `<span class="ticker-item" onclick="openModal('${c.ticker}')">
+      <span class="ticker-symbol">${c.ticker}</span>
+      <span class="ticker-price">$${c.price.toFixed(2)}</span>
+      <span class="ticker-change ${changeClass}">${arrow}${c.change.toFixed(2)} (${arrow}${(c.change / c.price * 100).toFixed(2)}%)</span>
+    </span>`;
+  }).join('');
+  document.getElementById('tickerContent').innerHTML = items + items; // duplicate for seamless scroll
+}
+
+// ===== SUMMARY CARDS =====
+function renderSummary() {
+  const data = COMPANIES.map(c => ({ company: c, status: getStatus(c) }));
+  const beats = data.filter(d => d.status === 'beat').length;
+  const misses = data.filter(d => d.status === 'miss').length;
+  const totalRev = COMPANIES.reduce((sum, c) => {
+    const reported = getReportedQuarters(c);
+    return sum + reported.reduce((s, q) => s + (q.revAct || 0), 0);
+  }, 0);
+  const avgSurprise = (() => {
+    let total = 0, count = 0;
+    COMPANIES.forEach(c => {
+      const latest = getLatestReported(c);
+      if (latest) {
+        const s = surprise(latest.epsEst, latest.epsAct);
+        if (s !== null) { total += s; count++; }
+      }
+    });
+    return count > 0 ? total / count : 0;
+  })();
+
+  const upcoming = COMPANIES.reduce((sum, c) =>
+    sum + c.fyData[currentFY].quarters.filter(q => !q.reported).length, 0);
+
+  document.getElementById('summaryRow').innerHTML = `
+    <div class="summary-card">
+      <div class="summary-label">Beat / Miss Ratio</div>
+      <div class="summary-value">${beats} / ${misses}</div>
+      <div class="summary-sub positive">${((beats / (beats + misses)) * 100).toFixed(0)}% beat rate</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Total Revenue (Reported)</div>
+      <div class="summary-value">$${(totalRev).toFixed(0)}B</div>
+      <div class="summary-sub neutral">${currentFY} reported quarters</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Avg EPS Surprise</div>
+      <div class="summary-value ${avgSurprise >= 0 ? 'positive' : 'negative'}">${avgSurprise >= 0 ? '+' : ''}${avgSurprise.toFixed(2)}%</div>
+      <div class="summary-sub ${avgSurprise >= 0 ? 'positive' : 'negative'}">vs. consensus estimates</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Upcoming Reports</div>
+      <div class="summary-value">${upcoming}</div>
+      <div class="summary-sub neutral">${currentFY} quarters pending</div>
+    </div>
+  `;
+}
+
+// ===== COMPANY CARDS =====
+function renderCompanyGrid() {
+  const filtered = getFilteredCompanies();
+  const grid = document.getElementById('companyGrid');
+
+  // Destroy old sparklines
+  Object.values(sparklineCharts).forEach(c => c.destroy());
+  sparklineCharts = {};
+
+  grid.innerHTML = filtered.map(c => {
+    const latest = getLatestReported(c);
+    const status = getStatus(c);
+    const fyInfo = c.fyData[currentFY];
+    const reported = getReportedQuarters(c);
+
+    const badgeClass = status === 'beat' ? 'badge-beat' : status === 'miss' ? 'badge-miss' : 'badge-pending';
+    const badgeText = status === 'beat' ? 'BEAT' : status === 'miss' ? 'MISS' : 'PENDING';
+
+    const epsSurprise = latest ? surprise(latest.epsEst, latest.epsAct) : null;
+
+    return `<div class="company-card" onclick="openModal('${c.ticker}')">
+      <div class="company-top">
+        <div class="company-info">
+          <div class="company-logo" style="background:${c.color}">${c.ticker.slice(0, 2)}</div>
+          <div>
+            <div class="company-name">${c.name}</div>
+            <div class="company-ticker">${c.ticker} · ${c.sector}</div>
+          </div>
+        </div>
+        <span class="company-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="company-metrics">
+        <div class="metric-item">
+          <div class="metric-label">Latest EPS</div>
+          <div class="metric-value">${latest ? '$' + fmt(latest.epsAct) : '--'}</div>
+          <div class="metric-sub ${epsSurprise !== null && epsSurprise >= 0 ? 'positive' : 'negative'}">
+            ${epsSurprise !== null ? (epsSurprise >= 0 ? '+' : '') + fmt(epsSurprise, 1) + '% surprise' : 'pending'}
+          </div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-label">Latest Revenue</div>
+          <div class="metric-value">${latest ? fmtB(latest.revAct) : '--'}</div>
+          <div class="metric-sub ${latest && latest.revAct >= latest.revEst ? 'positive' : 'negative'}">
+            est. ${latest ? fmtB(latest.revEst) : '--'}
+          </div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-label">FY EPS Est</div>
+          <div class="metric-value">$${fmt(fyInfo.annualEpsEst)}</div>
+          <div class="metric-sub neutral">P/E ${fmt(fyInfo.pe, 1)}</div>
+        </div>
+      </div>
+      <div class="sparkline-container"><canvas id="spark-${c.ticker}"></canvas></div>
+    </div>`;
+  }).join('');
+
+  // Render sparklines
+  filtered.forEach(c => {
+    const canvas = document.getElementById(`spark-${c.ticker}`);
+    if (!canvas) return;
+    const reported = getReportedQuarters(c);
+    const labels = reported.map(q => q.q);
+    const epsData = reported.map(q => q.epsAct);
+    sparklineCharts[c.ticker] = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: epsData,
+          borderColor: getStatus(c) === 'beat' ? '#22c55e' : '#ef4444',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: getStatus(c) === 'beat' ? '#22c55e' : '#ef4444',
+          fill: true,
+          backgroundColor: getStatus(c) === 'beat' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: true } },
+        scales: {
+          x: { display: false },
+          y: { display: false }
+        }
+      }
+    });
+  });
+}
+
+// ===== MAIN CHARTS =====
+function renderCharts() {
+  Object.values(mainCharts).forEach(c => c.destroy());
+  mainCharts = {};
+
+  const reported = COMPANIES.filter(c => getLatestReported(c));
+
+  // EPS Actual vs Estimate
+  const epsCtx = document.getElementById('epsChart');
+  mainCharts.eps = new Chart(epsCtx, {
+    type: 'bar',
+    data: {
+      labels: reported.map(c => c.ticker),
+      datasets: [
+        {
+          label: 'EPS Estimate',
+          data: reported.map(c => getLatestReported(c).epsEst),
+          backgroundColor: 'rgba(59,130,246,0.5)',
+          borderColor: '#3b82f6',
+          borderWidth: 1,
+          borderRadius: 4
+        },
+        {
+          label: 'EPS Actual',
+          data: reported.map(c => getLatestReported(c).epsAct),
+          backgroundColor: reported.map(c => {
+            const l = getLatestReported(c);
+            return l.epsAct >= l.epsEst ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)';
+          }),
+          borderColor: reported.map(c => {
+            const l = getLatestReported(c);
+            return l.epsAct >= l.epsEst ? '#22c55e' : '#ef4444';
+          }),
+          borderWidth: 1,
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 12 } } }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(42,58,82,0.5)' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + v.toFixed(2) }, grid: { color: 'rgba(42,58,82,0.5)' } }
+      }
+    }
+  });
+
+  // Revenue Chart
+  const revCtx = document.getElementById('revenueChart');
+  mainCharts.revenue = new Chart(revCtx, {
+    type: 'bar',
+    data: {
+      labels: reported.map(c => c.ticker),
+      datasets: [
+        {
+          label: 'Revenue Est.',
+          data: reported.map(c => getLatestReported(c).revEst),
+          backgroundColor: 'rgba(168,85,247,0.4)',
+          borderColor: '#a855f7',
+          borderWidth: 1,
+          borderRadius: 4
+        },
+        {
+          label: 'Revenue Actual',
+          data: reported.map(c => getLatestReported(c).revAct),
+          backgroundColor: reported.map(c => {
+            const l = getLatestReported(c);
+            return l.revAct >= l.revEst ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)';
+          }),
+          borderColor: reported.map(c => {
+            const l = getLatestReported(c);
+            return l.revAct >= l.revEst ? '#22c55e' : '#ef4444';
+          }),
+          borderWidth: 1,
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 12 } } }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(42,58,82,0.5)' } },
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + v + 'B' }, grid: { color: 'rgba(42,58,82,0.5)' } }
+      }
+    }
+  });
+
+  // Surprise Chart
+  const surpriseCtx = document.getElementById('surpriseChart');
+  const surpriseData = reported.map(c => {
+    const l = getLatestReported(c);
+    return surprise(l.epsEst, l.epsAct);
+  });
+  mainCharts.surprise = new Chart(surpriseCtx, {
+    type: 'bar',
+    data: {
+      labels: reported.map(c => c.ticker),
+      datasets: [{
+        label: 'EPS Surprise %',
+        data: surpriseData,
+        backgroundColor: surpriseData.map(s => s >= 0 ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'),
+        borderColor: surpriseData.map(s => s >= 0 ? '#22c55e' : '#ef4444'),
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(2) + '%' } }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: 'rgba(42,58,82,0.5)' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(42,58,82,0.5)' } }
+      }
+    }
+  });
+
+  // Sector Beat Rate
+  const sectors = {};
+  COMPANIES.forEach(c => {
+    if (!sectors[c.sector]) sectors[c.sector] = { beats: 0, total: 0 };
+    sectors[c.sector].total++;
+    if (getStatus(c) === 'beat') sectors[c.sector].beats++;
+  });
+  const sectorLabels = Object.keys(sectors);
+  const sectorRates = sectorLabels.map(s => (sectors[s].beats / sectors[s].total * 100));
+  const sectorCtx = document.getElementById('sectorChart');
+  mainCharts.sector = new Chart(sectorCtx, {
+    type: 'doughnut',
+    data: {
+      labels: sectorLabels.map((s, i) => `${s} (${sectorRates[i].toFixed(0)}%)`),
+      datasets: [{
+        data: sectorRates,
+        backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ef4444'],
+        borderColor: '#1a2234',
+        borderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#94a3b8', font: { size: 13 }, padding: 16 }
+        },
+        tooltip: { callbacks: { label: ctx => ctx.label + ' beat rate' } }
+      }
+    }
+  });
+}
+
+// ===== CALENDAR =====
+function renderCalendar() {
+  const allQuarters = [];
+  COMPANIES.forEach(c => {
+    c.fyData[currentFY].quarters.forEach(q => {
+      allQuarters.push({ ...q, ticker: c.ticker, name: c.name });
+    });
+  });
+  allQuarters.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  document.getElementById('calendarBody').innerHTML = allQuarters.map(q => {
+    const s = surprise(q.epsEst, q.epsAct);
+    const statusClass = q.reported ? 'status-reported' : 'status-upcoming';
+    const statusText = q.reported ? 'Reported' : 'Upcoming';
+    return `<tr>
+      <td class="mono">${q.date}</td>
+      <td>${q.name}</td>
+      <td class="mono" style="font-weight:700">${q.ticker}</td>
+      <td class="mono">$${fmt(q.epsEst)}</td>
+      <td class="mono" style="font-weight:700">${q.epsAct !== null ? '$' + fmt(q.epsAct) : '--'}</td>
+      <td class="mono">${fmtB(q.revEst)}</td>
+      <td class="mono" style="font-weight:700">${q.revAct !== null ? fmtB(q.revAct) : '--'}</td>
+      <td class="mono ${s !== null ? (s >= 0 ? 'positive' : 'negative') : ''}" style="font-weight:700">
+        ${s !== null ? (s >= 0 ? '+' : '') + fmt(s, 1) + '%' : '--'}
+      </td>
+      <td><span class="status-dot ${statusClass}"></span>${statusText}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== MODAL =====
+function openModal(ticker) {
+  const c = COMPANIES.find(co => co.ticker === ticker);
+  if (!c) return;
+  const fyInfo = c.fyData[currentFY];
+  const reported = getReportedQuarters(c);
+  const latest = getLatestReported(c);
+  const epsSurprise = latest ? surprise(latest.epsEst, latest.epsAct) : null;
+  const revSurprise = latest ? surprise(latest.revEst, latest.revAct) : null;
+
+  const totalEpsAct = reported.reduce((s, q) => s + (q.epsAct || 0), 0);
+  const totalRevAct = reported.reduce((s, q) => s + (q.revAct || 0), 0);
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:16px">
+        <div class="company-logo" style="background:${c.color};width:52px;height:52px;font-size:18px;border-radius:12px">${c.ticker.slice(0, 2)}</div>
+        <div>
+          <div style="font-size:22px;font-weight:800">${c.name}</div>
+          <div style="color:var(--text-muted);font-family:var(--font-mono)">${c.ticker} · ${c.sector} · ${currentFY}</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-kpi-row">
+      <div class="modal-kpi">
+        <div class="modal-kpi-label">Market Cap</div>
+        <div class="modal-kpi-value">$${fyInfo.marketCap.toLocaleString()}B</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="modal-kpi-label">P/E Ratio</div>
+        <div class="modal-kpi-value">${fmt(fyInfo.pe, 1)}</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="modal-kpi-label">YTD EPS</div>
+        <div class="modal-kpi-value positive">$${fmt(totalEpsAct)}</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="modal-kpi-label">YTD Revenue</div>
+        <div class="modal-kpi-value">$${totalRevAct.toFixed(1)}B</div>
+      </div>
+    </div>
+    <div class="modal-charts">
+      <div class="modal-chart-card">
+        <div class="modal-chart-title">Quarterly EPS: Estimate vs Actual</div>
+        <div class="modal-chart-container"><canvas id="modalEpsChart"></canvas></div>
+      </div>
+      <div class="modal-chart-card">
+        <div class="modal-chart-title">Quarterly Revenue ($B)</div>
+        <div class="modal-chart-container"><canvas id="modalRevChart"></canvas></div>
+      </div>
+      <div class="modal-chart-card">
+        <div class="modal-chart-title">EPS Surprise % by Quarter</div>
+        <div class="modal-chart-container"><canvas id="modalSurpriseChart"></canvas></div>
+      </div>
+      <div class="modal-chart-card">
+        <div class="modal-chart-title">Revenue Growth Trend</div>
+        <div class="modal-chart-container"><canvas id="modalGrowthChart"></canvas></div>
+      </div>
+    </div>
+    <div style="margin-top:20px">
+      <table class="calendar-table">
+        <thead><tr>
+          <th>Quarter</th><th>Date</th><th>EPS Est</th><th>EPS Act</th><th>Rev Est</th><th>Rev Act</th><th>Surprise</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+          ${fyInfo.quarters.map(q => {
+            const s = surprise(q.epsEst, q.epsAct);
+            return `<tr>
+              <td class="mono" style="font-weight:700">${q.q}</td>
+              <td class="mono">${q.date}</td>
+              <td class="mono">$${fmt(q.epsEst)}</td>
+              <td class="mono" style="font-weight:700">${q.epsAct !== null ? '$' + fmt(q.epsAct) : '--'}</td>
+              <td class="mono">${fmtB(q.revEst)}</td>
+              <td class="mono" style="font-weight:700">${q.revAct !== null ? fmtB(q.revAct) : '--'}</td>
+              <td class="mono ${s !== null ? (s >= 0 ? 'positive' : 'negative') : ''}" style="font-weight:700">
+                ${s !== null ? (s >= 0 ? '+' : '') + fmt(s, 1) + '%' : '--'}
+              </td>
+              <td><span class="status-dot ${q.reported ? 'status-reported' : 'status-upcoming'}"></span>${q.reported ? 'Reported' : 'Upcoming'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('modalOverlay').classList.add('active');
+
+  // Modal charts
+  const quarters = fyInfo.quarters;
+  const allLabels = quarters.map(q => q.q);
+
+  new Chart(document.getElementById('modalEpsChart'), {
+    type: 'bar',
+    data: {
+      labels: allLabels,
+      datasets: [
+        { label: 'Estimate', data: quarters.map(q => q.epsEst), backgroundColor: 'rgba(59,130,246,0.5)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 },
+        { label: 'Actual', data: quarters.map(q => q.epsAct), backgroundColor: quarters.map(q => q.epsAct !== null && q.epsAct >= q.epsEst ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.3)'), borderColor: quarters.map(q => q.epsAct !== null && q.epsAct >= q.epsEst ? '#22c55e' : '#ef4444'), borderWidth: 1, borderRadius: 4 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(42,58,82,0.5)' } } } }
+  });
+
+  new Chart(document.getElementById('modalRevChart'), {
+    type: 'bar',
+    data: {
+      labels: allLabels,
+      datasets: [
+        { label: 'Estimate', data: quarters.map(q => q.revEst), backgroundColor: 'rgba(168,85,247,0.4)', borderColor: '#a855f7', borderWidth: 1, borderRadius: 4 },
+        { label: 'Actual', data: quarters.map(q => q.revAct), backgroundColor: quarters.map(q => q.revAct !== null && q.revAct >= q.revEst ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.3)'), borderColor: quarters.map(q => q.revAct !== null && q.revAct >= q.revEst ? '#22c55e' : '#ef4444'), borderWidth: 1, borderRadius: 4 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, y: { ticks: { color: '#94a3b8', callback: v => '$' + v + 'B' }, grid: { color: 'rgba(42,58,82,0.5)' } } } }
+  });
+
+  const surpriseVals = reported.map(q => surprise(q.epsEst, q.epsAct));
+  new Chart(document.getElementById('modalSurpriseChart'), {
+    type: 'bar',
+    data: {
+      labels: reported.map(q => q.q),
+      datasets: [{
+        label: 'Surprise %',
+        data: surpriseVals,
+        backgroundColor: surpriseVals.map(s => s >= 0 ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'),
+        borderColor: surpriseVals.map(s => s >= 0 ? '#22c55e' : '#ef4444'),
+        borderWidth: 1, borderRadius: 4
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, y: { ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: 'rgba(42,58,82,0.5)' } } } }
+  });
+
+  const revActuals = reported.map(q => q.revAct);
+  new Chart(document.getElementById('modalGrowthChart'), {
+    type: 'line',
+    data: {
+      labels: reported.map(q => q.q),
+      datasets: [{
+        label: 'Revenue ($B)',
+        data: revActuals,
+        borderColor: '#a855f7',
+        backgroundColor: 'rgba(168,85,247,0.1)',
+        borderWidth: 2,
+        pointRadius: 5,
+        pointBackgroundColor: '#a855f7',
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { display: false } }, y: { ticks: { color: '#94a3b8', callback: v => '$' + v + 'B' }, grid: { color: 'rgba(42,58,82,0.5)' } } } }
+  });
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modalOverlay')) return;
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+// ===== REAL-TIME SIMULATION =====
+function simulateRealTime() {
+  COMPANIES.forEach(c => {
+    const volatility = 0.002;
+    const delta = c.price * volatility * (Math.random() - 0.48);
+    c.price = Math.max(1, c.price + delta);
+    c.change += delta * 0.3;
+  });
+  renderTicker();
+  updateTimestamp();
+}
+
+// ===== RENDER ALL =====
+function renderAll() {
+  renderTicker();
+  renderSummary();
+  renderCompanyGrid();
+  renderCharts();
+  renderCalendar();
+  updateTimestamp();
+}
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.getElementById('modalOverlay').classList.remove('active');
+  }
+});
+
+// ===== INIT =====
+renderAll();
+setInterval(simulateRealTime, 3000);
+</script>
+</body>
+</html>
